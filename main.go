@@ -1,4 +1,4 @@
-package main
+package minigrep
 
 import (
 	"fmt"
@@ -13,9 +13,9 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	content, err := readFile(filepath)
-	if err != nil {
-		fmt.Println(err)
+	content, e := os.ReadFile(filepath)
+	if e != nil {
+		fmt.Println(e)
 		return
 	}
 	searchFile(string(content), searchText)
