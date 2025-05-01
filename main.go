@@ -42,3 +42,27 @@ func searchFile(content string, searchText string) {
 		}
 	}
 }
+
+func readFile(filepath string) (string, error) {
+	// 检查文件是否存在
+	if _, err := os.Stat(filepath); os.IsNotExist(err) {
+		return "", fmt.Errorf("file not found")
+	}
+
+	// 检查是否是目录
+	info, err := os.Stat(filepath)
+	if err == nil && info.IsDir() {
+		return "", fmt.Errorf("is a directory, not a file")
+	}
+
+	// 读取文件内容
+	content, err := os.ReadFile(filepath)
+	if err != nil {
+		if os.IsPermission(err) {
+			return "", fmt.Errorf("permission denied")
+		}
+		return "", err
+	}
+
+	return string(content), nil
+}
