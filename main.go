@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"strings"
@@ -8,37 +9,103 @@ import (
 
 func main() {
 	args := os.Args
-	filepath, searchText, err := parseArgs(args)
+	cmdArgs, err := parseArgs(args)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
-	content, err := readFile(filepath)
+	var content = ""
+	// 从输出流中读取
+	if cmdArgs.filepath == "" {
+
+	} else {
+		contentByte, e := readFile(cmdArgs.filepath)
+		if e != nil {
+			fmt.Println(e)
+			return
+		}
+		content = contentByte
+	}
+	searchFile(content, cmdArgs)
+}
+
+type cmdArgs struct {
+	filepath            string
+	searchText          string
+	isIgnoreCase        bool
+	isIncludeLineNumber bool
+	afterLine           int
+	beforeLine          int
+	aroundLine          int
+}
+
+/**
+ * 解析命令行参数
+ */
+func parseArgs(args []string) (cmdArgs, error) {
+	// 选项参数用flag解析
+	isIgnoreCase := flag.Bool("i", false, "ignore case")
+	aroud := flag.Int("a", 0, "aroud line")
+	befor := flag.Int("B", 0, "befor line")
+	afert := flag.Int("A", 0, "afert line")
+	isIncludeLineNumber := flag.Bool("n", false, "include line number")
+	err := flag.CommandLine.Parse(args[1:])
 	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	searchFile(string(content), searchText)
-}
-
-func parseArgs(args []string) (filepath string, searchText string, error error) {
-	if len(args) != 3 {
-		return "", "", fmt.Errorf("illegal arguments, should be filepath and searchText")
+		return cmdArgs{}, err
 	}
 
-	// 文件路径
-	filepath = args[1]
-	searchText = args[2]
-	return filepath, searchText, nil
+	// 非选项参数用普通方式解析
+	nonFlagArgs := flag.Args()
+	// 只包含了搜索内容
+	var searchText string
+	var filepath string
+	if len(nonFlagArgs) == 1 {
+		filepath = ""
+		searchText = nonFlagArgs[0]
+	} else if len(nonFlagArgs) == 2 {
+		filepath = nonFlagArgs[0]
+		searchText = nonFlagArgs[1]
+	}
+	return cmdArgs{filepath, searchText, *isIgnoreCase, *isIncludeLineNumber, *afert, *befor, *aroud}, nil
 }
-func searchFile(content string, searchText string) {
+
+/**
+ * 搜索文件并打印内容
+ */
+func searchFile(content string, cmdArgs cmdArgs) {
 	if content == "" {
 		return
 	}
 	lines := strings.Split(content, "\n")
-	for _, line := range lines {
+	for i, line := range lines {
+		searchText := cmdArgs.searchText
+		if cmdArgs.isIgnoreCase {
+			searchText = strings.ToLower(cmdArgs.searchText)
+			line = strings.ToLower(line)
+		}
 		if strings.Contains(line, searchText) {
-			fmt.Println(line)
+			printLine(cmdArgs, lines, i)
+		}
+	}
+}
+
+func printLine(cmdArgs cmdArgs, lines []string, i int) {
+	var a, b int
+	if cmdArgs.aroundLine > 0 {
+		a = cmdArgs.aroundLine
+		b = cmdArgs.aroundLine
+	} else {
+		a = cmdArgs.afterLine
+		b = cmdArgs.beforeLine
+	}
+	if i-a < 0 {
+		a = i
+	}
+	for index := i - a; index <= i+b; index++ {
+		if cmdArgs.isIncludeLineNumber {
+			fmt.Println("%d:%s", i, lines[index])
+		} else {
+			fmt.Println(lines[index])
 		}
 	}
 }
