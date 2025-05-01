@@ -32,6 +32,9 @@ func parseArgs(args []string) (filepath string, searchText string, error error) 
 	return filepath, searchText, nil
 }
 func searchFile(content string, searchText string) {
+	if content == "" {
+		return
+	}
 	lines := strings.Split(content, "\n")
 	for _, line := range lines {
 		if strings.Contains(line, searchText) {
