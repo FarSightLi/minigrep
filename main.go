@@ -13,9 +13,9 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	content, e := os.ReadFile(filepath)
-	if e != nil {
-		fmt.Println(e)
+	content, err := readFile(filepath)
+	if err != nil {
+		fmt.Println(err)
 		return
 	}
 	searchFile(string(content), searchText)
