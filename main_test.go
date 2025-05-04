@@ -18,7 +18,8 @@ func TestParseArgs(t *testing.T) {
 		err      error
 	}{{
 		name: "test1",
-		args: []string{"-i", "-a=2", "file.txt", "hello"},
+		// 此处的main.go是模拟run命令的参数
+		args: []string{"main.go", "-i", "-a=2", "file.txt", "hello"},
 		expected: cmdArgs{
 			filepath:            "file.txt",
 			searchText:          "hello",
@@ -31,7 +32,7 @@ func TestParseArgs(t *testing.T) {
 		err: nil,
 	}, {
 		name: "test2",
-		args: []string{"-n", "-B=3", "file.txt", "world"},
+		args: []string{"main.go", "-n", "-B=3", "file.txt", "world"},
 		expected: cmdArgs{
 			filepath:            "file.txt",
 			searchText:          "world",
@@ -44,7 +45,7 @@ func TestParseArgs(t *testing.T) {
 		err: nil,
 	}, {
 		name: "test3",
-		args: []string{"-A=1", "-B=2", "file.txt", "test"},
+		args: []string{"main.go", "-A=1", "-B=2", "file.txt", "test"},
 		expected: cmdArgs{
 			filepath:            "file.txt",
 			searchText:          "test",
@@ -57,7 +58,7 @@ func TestParseArgs(t *testing.T) {
 		err: nil,
 	}, {
 		name: "test4",
-		args: []string{"invalid_flag", "file.txt", "error"},
+		args: []string{"main.go", "invalid_flag", "file.txt", "error"},
 		expected: cmdArgs{
 			filepath:   "file.txt",
 			searchText: "error",
@@ -69,8 +70,14 @@ func TestParseArgs(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			flag.CommandLine = flag.NewFlagSet("test", flag.ExitOnError)
 			result, err := parseArgs(test.args)
-			if err != test.err {
-				t.Errorf("expected error %v, got %v", test.err, err)
+			if test.err == nil && err != nil {
+				t.Errorf("expected no error, got %v", err)
+			} else if test.err != nil && err == nil {
+				// 针对Test4
+				t.Errorf("expected error %v, but got nil", test.err)
+			}
+			if err != nil {
+				return
 			}
 			if result.filepath != test.expected.filepath ||
 				result.searchText != test.expected.searchText ||
@@ -79,7 +86,7 @@ func TestParseArgs(t *testing.T) {
 				result.aroundLine != test.expected.aroundLine ||
 				result.beforeLine != test.expected.beforeLine ||
 				result.afterLine != test.expected.afterLine {
-				t.Errorf("expected %+v, got %+v", test.expected, result)
+				t.Errorf("expected:\n%+v\n\ngot:\n%+v", test.expected, result)
 			}
 		})
 	}
@@ -303,28 +310,6 @@ func TestSearchFile(t *testing.T) {
 			}
 		})
 	}
-}
-
-func main() {
-	args := os.Args
-	cmdArgs, err := parseArgs(args)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	var content = ""
-	// 从输出流中读取
-	if cmdArgs.filepath == "" {
-
-	} else {
-		contentByte, e := readFile(cmdArgs.filepath)
-		if e != nil {
-			fmt.Println(e)
-			return
-		}
-		content = contentByte
-	}
-	searchFile(content, cmdArgs)
 }
 
 // TestReadFile 测试读取文件功能

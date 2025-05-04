@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -65,6 +66,8 @@ func parseArgs(args []string) (cmdArgs, error) {
 	} else if len(nonFlagArgs) == 2 {
 		filepath = nonFlagArgs[0]
 		searchText = nonFlagArgs[1]
+	} else {
+		return cmdArgs{}, errors.New("参数错误,标准参数只允许有文件路径和搜索内容")
 	}
 	return cmdArgs{filepath, searchText, *isIgnoreCase, *isIncludeLineNumber, *afert, *befor, *aroud}, nil
 }
@@ -103,7 +106,7 @@ func printLine(cmdArgs cmdArgs, lines []string, i int) {
 	}
 	for index := i - a; index <= i+b; index++ {
 		if cmdArgs.isIncludeLineNumber {
-			fmt.Println("%d:%s", i, lines[index])
+			fmt.Printf("%d:%s\n", index, lines[index])
 		} else {
 			fmt.Println(lines[index])
 		}
