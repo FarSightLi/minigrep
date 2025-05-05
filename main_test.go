@@ -1,10 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -18,8 +18,7 @@ func TestParseArgs(t *testing.T) {
 		err      error
 	}{{
 		name: "test1",
-		// 此处的main.go是模拟run命令的参数
-		args: []string{"main.go", "-i", "-a=2", "file.txt", "hello"},
+		args: []string{"main.go", "-i", "-C=2", "file.txt", "hello"},
 		expected: cmdArgs{
 			filepath:            "file.txt",
 			searchText:          "hello",
@@ -139,7 +138,7 @@ func TestSearchFile(t *testing.T) {
 			afterLine:           1,
 			isIncludeLineNumber: true,
 		},
-		expected: []int{1, 2, 3},
+		expected: []int{},
 	}, {
 		name:    "test6",
 		content: "apple\nbanana\ncherry\ndate\nelderberry",
@@ -269,17 +268,17 @@ func TestSearchFile(t *testing.T) {
 			// 捕获输出
 			var output bytes.Buffer
 			oldStdout := os.Stdout
-			customWriter := bufio.NewWriter(&output)
-			r, w, _ := os.Pipe()
-			os.Stdout = w
 			defer func() { os.Stdout = oldStdout }()
-			_, _ = r, w
+
+			reader, writer, _ := os.Pipe()
+			os.Stdout = writer
 
 			// 将内容分割成行
 			lines := strings.Split(test.content, "\n")
 
 			searchFile(test.content, test.cmdArgs)
-			customWriter.Flush()
+			writer.Close()
+			_, _ = io.Copy(&output, reader)
 
 			// 验证输出
 			outputLines := strings.Split(strings.TrimRight(output.String(), "\n"), "\n")

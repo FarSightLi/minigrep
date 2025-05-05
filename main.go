@@ -46,7 +46,7 @@ type cmdArgs struct {
 func parseArgs(args []string) (cmdArgs, error) {
 	// 选项参数用flag解析
 	isIgnoreCase := flag.Bool("i", false, "ignore case")
-	aroud := flag.Int("a", 0, "aroud line")
+	aroud := flag.Int("C", 0, "aroud line")
 	befor := flag.Int("B", 0, "befor line")
 	afert := flag.Int("A", 0, "afert line")
 	isIncludeLineNumber := flag.Bool("n", false, "include line number")
@@ -101,10 +101,16 @@ func printLine(cmdArgs cmdArgs, lines []string, i int) {
 		a = cmdArgs.afterLine
 		b = cmdArgs.beforeLine
 	}
-	if i-a < 0 {
-		a = i
+	start := i - a
+	if start < 0 {
+		start = 0
 	}
-	for index := i - a; index <= i+b; index++ {
+	end := i + b
+	len := len(lines)
+	if end >= len {
+		end = len - 1
+	}
+	for index := start; index <= end; index++ {
 		if cmdArgs.isIncludeLineNumber {
 			fmt.Printf("%d:%s\n", index, lines[index])
 		} else {
