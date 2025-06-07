@@ -4,6 +4,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"regexp"
 	"strings"
@@ -17,9 +18,14 @@ func main() {
 		return
 	}
 	var content = ""
-	// 从输出流中读取
+	// 从输入流中读取
 	if cmdArgs.filepath == "" {
-
+		bytes, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			fmt.Println("读取输入流出错")
+			return
+		}
+		content = string(bytes)
 	} else {
 		contentByte, e := readFile(cmdArgs.filepath)
 		if e != nil {
