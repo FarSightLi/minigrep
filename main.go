@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 )
 
@@ -38,6 +39,7 @@ type cmdArgs struct {
 	afterLine           int
 	beforeLine          int
 	aroundLine          int
+	useRegex            bool
 }
 
 /**
@@ -46,10 +48,11 @@ type cmdArgs struct {
 func parseArgs(args []string) (cmdArgs, error) {
 	// 选项参数用flag解析
 	isIgnoreCase := flag.Bool("i", false, "ignore case")
-	aroud := flag.Int("C", 0, "aroud line")
-	befor := flag.Int("B", 0, "befor line")
-	afert := flag.Int("A", 0, "afert line")
+	around := flag.Int("a", 0, "around line")
+	before := flag.Int("B", 0, "before line")
+	after := flag.Int("A", 0, "after line")
 	isIncludeLineNumber := flag.Bool("n", false, "include line number")
+	useRegex := flag.Bool("e", false, "use regex module")
 	err := flag.CommandLine.Parse(args[1:])
 	if err != nil {
 		return cmdArgs{}, err
@@ -69,7 +72,14 @@ func parseArgs(args []string) (cmdArgs, error) {
 	} else {
 		return cmdArgs{}, errors.New("参数错误,标准参数只允许有文件路径和搜索内容")
 	}
-	return cmdArgs{filepath, searchText, *isIgnoreCase, *isIncludeLineNumber, *afert, *befor, *aroud}, nil
+	return cmdArgs{filepath,
+		searchText,
+		*isIgnoreCase,
+		*isIncludeLineNumber,
+		*after,
+		*before,
+		*around,
+		*useRegex}, nil
 }
 
 /**
@@ -79,20 +89,36 @@ func searchFile(content string, cmdArgs cmdArgs) {
 	if content == "" {
 		return
 	}
+	searchText := cmdArgs.searchText
+	// 提前编译正则
+	compile, err := regexp.Compile(searchText)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "非法的正则表达式: %v\n", err)
+		return
+	}
 	lines := strings.Split(content, "\n")
-	for i, line := range lines {
-		searchText := cmdArgs.searchText
-		if cmdArgs.isIgnoreCase {
-			searchText = strings.ToLower(cmdArgs.searchText)
-			line = strings.ToLower(line)
-		}
-		if strings.Contains(line, searchText) {
-			printLine(cmdArgs, lines, i)
+	for lineNum, line := range lines {
+		// 使用正则模式
+		if cmdArgs.useRegex {
+			if compile.MatchString(line) {
+				printLine(cmdArgs, lines, lineNum)
+			}
+		} else {
+			if cmdArgs.isIgnoreCase {
+				searchText = strings.ToLower(cmdArgs.searchText)
+				line = strings.ToLower(line)
+			}
+			if strings.Contains(line, searchText) {
+				printLine(cmdArgs, lines, lineNum)
+			}
 		}
 	}
 }
 
-func printLine(cmdArgs cmdArgs, lines []string, i int) {
+/**
+ * 根据参数打印匹配上的行
+ */
+func printLine(cmdArgs cmdArgs, lines []string, lineNum int) {
 	var a, b int
 	if cmdArgs.aroundLine > 0 {
 		a = cmdArgs.aroundLine
@@ -101,14 +127,14 @@ func printLine(cmdArgs cmdArgs, lines []string, i int) {
 		a = cmdArgs.afterLine
 		b = cmdArgs.beforeLine
 	}
-	start := i - a
+	start := lineNum - a
 	if start < 0 {
 		start = 0
 	}
-	end := i + b
-	len := len(lines)
-	if end >= len {
-		end = len - 1
+	end := lineNum + b
+	length := len(lines)
+	if end >= length {
+		end = length - 1
 	}
 	for index := start; index <= end; index++ {
 		if cmdArgs.isIncludeLineNumber {
@@ -123,19 +149,19 @@ func readFile(filepath string) (string, error) {
 	// 检查文件是否存在
 	info, err := os.Stat(filepath)
 	if os.IsNotExist(err) {
-		return "", fmt.Errorf("file not found")
+		return "", fmt.Errorf("找不到 %s 文件", filepath)
 	}
 
 	// 检查是否是目录
 	if err == nil && info.IsDir() {
-		return "", fmt.Errorf("is a directory, not a file")
+		return "", fmt.Errorf("%s 是一个目录而非文件", filepath)
 	}
 
 	// 读取文件内容
 	content, err := os.ReadFile(filepath)
 	if err != nil {
 		if os.IsPermission(err) {
-			return "", fmt.Errorf("permission denied")
+			return "", errors.New("权限被拒绝")
 		}
 		return "", err
 	}
