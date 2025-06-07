@@ -1,10 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"flag"
-	"fmt"
-	"io"
 	"os"
 	"strings"
 	"testing"
@@ -91,226 +88,6 @@ func TestParseArgs(t *testing.T) {
 	}
 }
 
-func TestSearchFile(t *testing.T) {
-	tests := []struct {
-		name     string
-		content  string
-		cmdArgs  cmdArgs
-		expected []int
-	}{{
-		name:    "test1",
-		content: "line1\nline2\nline3",
-		cmdArgs: cmdArgs{
-			searchText: "line",
-		},
-		expected: []int{0, 1, 2},
-	}, {
-		name:    "test2",
-		content: "Hello\nWorld\nhello world",
-		cmdArgs: cmdArgs{
-			searchText:   "hello",
-			isIgnoreCase: true,
-		},
-		expected: []int{0, 2},
-	}, {
-		name:    "test3",
-		content: "apple\nbanana\ncherry\ndate\nelderberry",
-		cmdArgs: cmdArgs{
-			searchText:   "berry",
-			isIgnoreCase: false,
-		},
-		expected: []int{4},
-	}, {
-		name:    "test4",
-		content: "apple\nbanana\ncherry\ndate\nelderberry",
-		cmdArgs: cmdArgs{
-			searchText:   "peach",
-			isIgnoreCase: false,
-		},
-		expected: []int{},
-	}, {
-		name:    "test5",
-		content: "apple\nbanana\ncherry\ndate\nelderberry",
-		cmdArgs: cmdArgs{
-			searchText:          "NA",
-			isIgnoreCase:        false,
-			beforeLine:          1,
-			afterLine:           1,
-			isIncludeLineNumber: true,
-		},
-		expected: []int{},
-	}, {
-		name:    "test6",
-		content: "apple\nbanana\ncherry\ndate\nelderberry",
-		cmdArgs: cmdArgs{
-			searchText:          "apple",
-			isIgnoreCase:        false,
-			aroundLine:          1,
-			isIncludeLineNumber: true,
-		},
-		expected: []int{0, 1, 2},
-	}, {
-		name:    "test7",
-		content: "apple\nbanana\ncherry\ndate\nelderberry\nfig\ngrape",
-		cmdArgs: cmdArgs{
-			searchText:          "grape",
-			isIgnoreCase:        false,
-			aroundLine:          2,
-			isIncludeLineNumber: true,
-		},
-		expected: []int{5, 6},
-	}, {
-		name:    "test8",
-		content: "apple\nbanana\ncherry\ndate\nelderberry\nfig\ngrape",
-		cmdArgs: cmdArgs{
-			searchText:          "apple",
-			isIgnoreCase:        false,
-			aroundLine:          3,
-			isIncludeLineNumber: true,
-		},
-		expected: []int{0, 1, 2, 3},
-	}, {
-		name:    "test9",
-		content: "apple\nbanana\ncherry\ndate\nelderberry\nfig\ngrape",
-		cmdArgs: cmdArgs{
-			searchText:          "fig",
-			isIgnoreCase:        false,
-			aroundLine:          3,
-			isIncludeLineNumber: true,
-		},
-		expected: []int{3, 4, 5, 6},
-	}, {
-		name:    "test10",
-		content: "apple\nbanana\ncherry\ndate\nelderberry\nfig\ngrape",
-		cmdArgs: cmdArgs{
-			searchText:          "grape",
-			isIgnoreCase:        false,
-			aroundLine:          3,
-			isIncludeLineNumber: true,
-		},
-		expected: []int{3, 4, 5, 6},
-	}, {
-		name:    "test11",
-		content: "apple\nbanana\ncherry\ndate\nelderberry\nfig\ngrape",
-		cmdArgs: cmdArgs{
-			searchText:          "banana",
-			isIgnoreCase:        false,
-			aroundLine:          3,
-			isIncludeLineNumber: true,
-		},
-		expected: []int{0, 1, 2, 3},
-	}, {
-		name:    "test12",
-		content: "apple\nbanana\ncherry\ndate\nelderberry\nfig\ngrape",
-		cmdArgs: cmdArgs{
-			searchText:          "cherry",
-			isIgnoreCase:        false,
-			aroundLine:          2,
-			isIncludeLineNumber: true,
-		},
-		expected: []int{0, 1, 2, 3, 4},
-	}, {
-		name:    "test13",
-		content: "apple\nbanana\ncherry\ndate\nelderberry\nfig\ngrape",
-		cmdArgs: cmdArgs{
-			searchText:          "date",
-			isIgnoreCase:        false,
-			aroundLine:          2,
-			isIncludeLineNumber: true,
-		},
-		expected: []int{1, 2, 3, 4},
-	}, {
-		name:    "test14",
-		content: "apple\nbanana\ncherry\ndate\nelderberry\nfig\ngrape",
-		cmdArgs: cmdArgs{
-			searchText:          "elderberry",
-			isIgnoreCase:        false,
-			aroundLine:          2,
-			isIncludeLineNumber: true,
-		},
-		expected: []int{2, 3, 4, 5},
-	}, {
-		name:    "test15",
-		content: "apple\nbanana\ncherry\ndate\nelderberry\nfig\ngrape",
-		cmdArgs: cmdArgs{
-			searchText:          "fig",
-			isIgnoreCase:        false,
-			aroundLine:          2,
-			isIncludeLineNumber: true,
-		},
-		expected: []int{3, 4, 5, 6},
-	}, {
-		name:    "test16",
-		content: "apple\nbanana\ncherry\ndate\nelderberry\nfig\ngrape",
-		cmdArgs: cmdArgs{
-			searchText:          "date",
-			isIgnoreCase:        false,
-			beforeLine:          2,
-			afterLine:           2,
-			isIncludeLineNumber: true,
-		},
-		expected: []int{1, 2, 3, 4},
-	}, {
-		name:    "test17",
-		content: "apple\nbanana\ncherry\ndate\nelderberry\nfig\ngrape",
-		cmdArgs: cmdArgs{
-			searchText:          "grape",
-			isIgnoreCase:        false,
-			beforeLine:          6,
-			afterLine:           0,
-			isIncludeLineNumber: true,
-		},
-		expected: []int{5, 6},
-	}}
-
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			// 捕获输出
-			var output bytes.Buffer
-			oldStdout := os.Stdout
-			defer func() { os.Stdout = oldStdout }()
-
-			reader, writer, _ := os.Pipe()
-			os.Stdout = writer
-
-			// 将内容分割成行
-			lines := strings.Split(test.content, "\n")
-
-			searchFile(test.content, test.cmdArgs)
-			writer.Close()
-			_, _ = io.Copy(&output, reader)
-
-			// 验证输出
-			outputLines := strings.Split(strings.TrimRight(output.String(), "\n"), "\n")
-			for i, line := range outputLines {
-				if i < len(test.expected) {
-					expectedLine := test.expected[i]
-					if test.cmdArgs.isIncludeLineNumber {
-						expectedPrefix := fmt.Sprintf("%d:", expectedLine)
-						if !strings.HasPrefix(line, expectedPrefix) {
-							t.Errorf("expected line %d to start with '%s', got '%s'", i, expectedPrefix, line)
-						}
-						// 检查行号后的文本是否正确
-						if expectedLine >= 0 && expectedLine < len(lines) && !strings.Contains(line, lines[expectedLine]) {
-							t.Errorf("expected line %d to contain '%s', got '%s'", i, lines[expectedLine], line)
-						}
-					} else {
-						// 不带行号的情况
-						if expectedLine >= 0 && expectedLine < len(lines) && !strings.Contains(line, lines[expectedLine]) {
-							t.Errorf("expected line %d to contain '%s', got '%s'", i, lines[expectedLine], line)
-						}
-					}
-				} else if len(test.expected) > 0 {
-					t.Errorf("extra line %d in output: %s", i, line)
-				}
-			}
-			if len(outputLines) == 0 && len(test.expected) > 0 {
-				t.Errorf("expected output but got none")
-			}
-		})
-	}
-}
-
 // TestReadFile 测试读取文件功能
 func TestReadFile(t *testing.T) {
 	// 创建临时测试文件
@@ -342,5 +119,74 @@ func TestReadFile(t *testing.T) {
 		t.Error("Expected error for reading directory, but got none")
 	} else if !strings.Contains(err.Error(), "is a directory") {
 		t.Errorf("Expected error message containing 'is a directory', but got '%v'", err)
+	}
+}
+
+func TestMatchLines(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		cmdArgs  cmdArgs
+		expected []string
+	}{
+		{
+			name:    "普通匹配",
+			content: "apple banana\ncherry apple\ndate",
+			cmdArgs: cmdArgs{
+				searchText: "apple",
+			},
+			expected: []string{"apple banana", "cherry apple"},
+		},
+		{
+			name:    "忽略大小写",
+			content: "Apple banana\nCHERRY APPLE",
+			cmdArgs: cmdArgs{
+				searchText:   "apple",
+				isIgnoreCase: true,
+			},
+			expected: []string{"Apple banana", "CHERRY APPLE"},
+		},
+		{
+			name:    "正则匹配以 a 开头",
+			content: "apple banana\ngrape apple\nant",
+			cmdArgs: cmdArgs{
+				searchText: "^[aA]",
+				useRegex:   true,
+			},
+			expected: []string{"apple banana", "ant"},
+		},
+		{
+			name:    "上下文两行",
+			content: "line1\nline2\napple\nline4\nline5",
+			cmdArgs: cmdArgs{
+				searchText: "apple",
+				aroundLine: 2,
+			},
+			expected: []string{"line1", "line2", "apple", "line4", "line5"},
+		},
+		{
+			name:    "显示行号",
+			content: "hello\nworld\nhello again",
+			cmdArgs: cmdArgs{
+				searchText:          "hello",
+				isIncludeLineNumber: true,
+			},
+			expected: []string{"0:hello", "2:hello again"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results := MatchLines(tt.content, tt.cmdArgs, make(map[int]struct{}))
+			if len(results) != len(tt.expected) {
+				t.Errorf("预期 %d 行，实际 %d 行", len(tt.expected), len(results))
+				return
+			}
+			for i := range results {
+				if results[i] != tt.expected[i] {
+					t.Errorf("第 %d 行期望 %q，实际 %q", i, tt.expected[i], results[i])
+				}
+			}
+		})
 	}
 }

@@ -17,7 +17,7 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	var content = ""
+	content := ""
 	// 从输入流中读取
 	if cmdArgs.filepath == "" {
 		bytes, err := io.ReadAll(os.Stdin)
@@ -34,7 +34,11 @@ func main() {
 		}
 		content = contentByte
 	}
-	searchFile(content, cmdArgs)
+	var printedLine = make(map[int]struct{})
+	line := MatchLines(content, cmdArgs, printedLine)
+	for _, s := range line {
+		fmt.Println(s)
+	}
 }
 
 type cmdArgs struct {
@@ -91,23 +95,28 @@ func parseArgs(args []string) (cmdArgs, error) {
 /**
  * 搜索文件并打印内容
  */
-func searchFile(content string, cmdArgs cmdArgs) {
+func MatchLines(content string, cmdArgs cmdArgs, printedLine map[int]struct{}) []string {
 	if content == "" {
-		return
+		return []string{}
 	}
 	searchText := cmdArgs.searchText
 	// 提前编译正则
-	compile, err := regexp.Compile(searchText)
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "非法的正则表达式: %v\n", err)
-		return
+	var compile *regexp.Regexp
+	if cmdArgs.useRegex {
+		c, err := regexp.Compile(searchText)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "非法的正则表达式: %v\n", err)
+			return []string{}
+		}
+		compile = c
 	}
+	var matchedLines []string
 	lines := strings.Split(content, "\n")
 	for lineNum, line := range lines {
 		// 使用正则模式
 		if cmdArgs.useRegex {
 			if compile.MatchString(line) {
-				printLine(cmdArgs, lines, lineNum)
+				matchedLines = append(matchedLines, formatLine(cmdArgs, lines, lineNum, printedLine)...)
 			}
 		} else {
 			if cmdArgs.isIgnoreCase {
@@ -115,16 +124,18 @@ func searchFile(content string, cmdArgs cmdArgs) {
 				line = strings.ToLower(line)
 			}
 			if strings.Contains(line, searchText) {
-				printLine(cmdArgs, lines, lineNum)
+				matchedLines = append(matchedLines, formatLine(cmdArgs, lines, lineNum, printedLine)...)
 			}
 		}
 	}
+	return matchedLines
 }
 
 /**
  * 根据参数打印匹配上的行
  */
-func printLine(cmdArgs cmdArgs, lines []string, lineNum int) {
+func formatLine(cmdArgs cmdArgs, lines []string, lineNum int, printedLine map[int]struct{}) []string {
+	var matchedLines []string
 	var a, b int
 	if cmdArgs.aroundLine > 0 {
 		a = cmdArgs.aroundLine
@@ -133,22 +144,28 @@ func printLine(cmdArgs cmdArgs, lines []string, lineNum int) {
 		a = cmdArgs.afterLine
 		b = cmdArgs.beforeLine
 	}
-	start := lineNum - a
+	start := lineNum - b
 	if start < 0 {
 		start = 0
 	}
-	end := lineNum + b
+	end := lineNum + a
 	length := len(lines)
 	if end >= length {
 		end = length - 1
 	}
 	for index := start; index <= end; index++ {
-		if cmdArgs.isIncludeLineNumber {
-			fmt.Printf("%d:%s\n", index, lines[index])
-		} else {
-			fmt.Println(lines[index])
+		// 如果打印过了就不再打印
+		if _, exist := printedLine[index]; exist {
+			continue
 		}
+		if cmdArgs.isIncludeLineNumber {
+			matchedLines = append(matchedLines, fmt.Sprintf("%d:%s", index, lines[index]))
+		} else {
+			matchedLines = append(matchedLines, fmt.Sprintf(lines[index]))
+		}
+		printedLine[index] = struct{}{}
 	}
+	return matchedLines
 }
 
 func readFile(filepath string) (string, error) {
