@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,6 +11,8 @@ import (
 	"strings"
 )
 
+var lineNum = 0
+
 func main() {
 	args := os.Args
 	cmdArgs, err := parseArgs(args)
@@ -17,28 +20,42 @@ func main() {
 		fmt.Println(err)
 		return
 	}
-	content := ""
+	var input io.Reader
 	// 从输入流中读取
-	if cmdArgs.filepath == "" {
-		bytes, err := io.ReadAll(os.Stdin)
-		if err != nil {
-			fmt.Println("读取输入流出错")
-			return
-		}
-		content = string(bytes)
+	filepath := cmdArgs.filepath
+	if filepath == "" {
+		input = os.Stdin
 	} else {
-		contentByte, e := readFile(cmdArgs.filepath)
+		file, e := os.Open(filepath)
 		if e != nil {
-			fmt.Println(e)
-			return
+			if os.IsNotExist(err) {
+				fmt.Printf("找不到 %s 文件", filepath)
+			}
+			if os.IsPermission(err) {
+				fmt.Printf("权限被拒绝")
+			}
+			input = file
 		}
-		content = contentByte
+		// defer 延迟关闭
+		defer func(file *os.File) {
+			err := file.Close()
+			if err != nil {
+				fmt.Printf("file close file %v", err)
+			}
+		}(file)
 	}
 	var printedLine = make(map[int]struct{})
-	line := MatchLines(content, cmdArgs, printedLine)
-	for _, s := range line {
-		fmt.Println(s)
+
+	scanner := bufio.NewScanner(input)
+	for scanner.Scan() {
+		text := scanner.Text()
+		lineNum++
+		line := MatchLines(text, cmdArgs, printedLine)
+		for _, s := range line {
+			fmt.Println(s)
+		}
 	}
+	lineNum = 0
 }
 
 type cmdArgs struct {

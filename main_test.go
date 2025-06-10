@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"os"
 	"strings"
@@ -177,7 +178,14 @@ func TestMatchLines(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			results := MatchLines(tt.content, tt.cmdArgs, make(map[int]struct{}))
+			reader := strings.NewReader(tt.content)
+			scanner := bufio.NewScanner(reader)
+			var results []string
+			for scanner.Scan() {
+				text := scanner.Text()
+				results = append(results, MatchLines(text, tt.cmdArgs, make(map[int]struct{}))...)
+			}
+
 			if len(results) != len(tt.expected) {
 				t.Errorf("预期 %d 行，实际 %d 行", len(tt.expected), len(results))
 				return
