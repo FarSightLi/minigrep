@@ -11,7 +11,17 @@ import (
 	"strings"
 )
 
-var lineNum = 0
+type cmdArgs struct {
+	filepath            string
+	searchText          string
+	isIgnoreCase        bool
+	isIncludeLineNumber bool
+	afterLine           int
+	beforeLine          int
+	aroundLine          int
+	useRegex            bool
+	compile             *regexp.Regexp
+}
 
 func main() {
 	args := os.Args
@@ -28,14 +38,16 @@ func main() {
 	} else {
 		file, e := os.Open(filepath)
 		if e != nil {
-			if os.IsNotExist(err) {
+			if os.IsNotExist(e) {
 				fmt.Printf("找不到 %s 文件", filepath)
-			}
-			if os.IsPermission(err) {
+			} else if os.IsPermission(e) {
 				fmt.Printf("权限被拒绝")
+			} else {
+				fmt.Printf("文件打开失败: %v", e)
 			}
-			input = file
+			return
 		}
+		input = file
 		// defer 延迟关闭
 		defer func(file *os.File) {
 			err := file.Close()
@@ -46,27 +58,34 @@ func main() {
 	}
 	var printedLine = make(map[int]struct{})
 
-	scanner := bufio.NewScanner(input)
+	// 行缓冲区，size为 1+after
+	size := 1 + cmdArgs.afterLine
+	buffer := make([]string, size)
+	reader := bufio.NewReader(input)
+	var lineNum = 0
+	scanner := bufio.NewScanner(reader)
+	notPrintLine := 0
 	for scanner.Scan() {
-		text := scanner.Text()
+		line := scanner.Text()
 		lineNum++
-		line := MatchLines(text, cmdArgs, printedLine)
-		for _, s := range line {
-			fmt.Println(s)
+		buffer = addBuffer(line, buffer, size)
+		if notPrintLine > 0 {
+			fmt.Println(formatLine(cmdArgs, lineNum, line))
+		}
+		if isMatch(cmdArgs, line) {
+			result := getBeforeLine(cmdArgs, buffer, lineNum, printedLine)
+			if len(result) > 0 {
+				for _, line := range result {
+					fmt.Println(line)
+				}
+			}
+			// 不用考虑之前为打印完的行，因此再次匹配后打印的行一定是包含了上次未打印的行
+			notPrintLine = cmdArgs.afterLine
 		}
 	}
-	lineNum = 0
-}
-
-type cmdArgs struct {
-	filepath            string
-	searchText          string
-	isIgnoreCase        bool
-	isIncludeLineNumber bool
-	afterLine           int
-	beforeLine          int
-	aroundLine          int
-	useRegex            bool
+	if err := scanner.Err(); err != nil {
+		fmt.Printf("扫描错误: %v\n", err)
+	}
 }
 
 /**
@@ -99,6 +118,20 @@ func parseArgs(args []string) (cmdArgs, error) {
 	} else {
 		return cmdArgs{}, errors.New("参数错误,标准参数只允许有文件路径和搜索内容")
 	}
+	if *around > 0 {
+		after = around
+		before = around
+	}
+
+	// 提前编译正则
+	var compile *regexp.Regexp
+	if *useRegex {
+		c, err := regexp.Compile(searchText)
+		if err != nil {
+			return cmdArgs{}, fmt.Errorf("非法的正则表达式: %v\n", err)
+		}
+		compile = c
+	}
 	return cmdArgs{filepath,
 		searchText,
 		*isIgnoreCase,
@@ -106,85 +139,65 @@ func parseArgs(args []string) (cmdArgs, error) {
 		*after,
 		*before,
 		*around,
-		*useRegex}, nil
+		*useRegex,
+		compile}, nil
 }
 
 /**
  * 搜索文件并打印内容
  */
-func MatchLines(content string, cmdArgs cmdArgs, printedLine map[int]struct{}) []string {
-	if content == "" {
-		return []string{}
-	}
-	searchText := cmdArgs.searchText
-	// 提前编译正则
-	var compile *regexp.Regexp
+func isMatch(cmdArgs cmdArgs, line string) bool {
+	// 使用正则模式
 	if cmdArgs.useRegex {
-		c, err := regexp.Compile(searchText)
-		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "非法的正则表达式: %v\n", err)
-			return []string{}
+		return cmdArgs.compile.MatchString(line)
+	} else {
+		searchText := cmdArgs.searchText
+		if cmdArgs.isIgnoreCase {
+			searchText = strings.ToLower(searchText)
+			line = strings.ToLower(line)
 		}
-		compile = c
+		return strings.Contains(line, searchText)
 	}
-	var matchedLines []string
-	lines := strings.Split(content, "\n")
-	for lineNum, line := range lines {
-		// 使用正则模式
-		if cmdArgs.useRegex {
-			if compile.MatchString(line) {
-				matchedLines = append(matchedLines, formatLine(cmdArgs, lines, lineNum, printedLine)...)
-			}
-		} else {
-			if cmdArgs.isIgnoreCase {
-				searchText = strings.ToLower(cmdArgs.searchText)
-				line = strings.ToLower(line)
-			}
-			if strings.Contains(line, searchText) {
-				matchedLines = append(matchedLines, formatLine(cmdArgs, lines, lineNum, printedLine)...)
-			}
-		}
+}
+
+func addBuffer(line string, buffer []string, size int) []string {
+	if len(buffer) > size {
+		buffer = buffer[1:]
 	}
-	return matchedLines
+	return append(buffer, line)
 }
 
 /**
- * 根据参数打印匹配上的行
+ * 获得匹配行之前的所有行（已格式化）
  */
-func formatLine(cmdArgs cmdArgs, lines []string, lineNum int, printedLine map[int]struct{}) []string {
-	var matchedLines []string
-	var a, b int
-	if cmdArgs.aroundLine > 0 {
-		a = cmdArgs.aroundLine
-		b = cmdArgs.aroundLine
-	} else {
-		a = cmdArgs.afterLine
-		b = cmdArgs.beforeLine
-	}
-	start := lineNum - b
+func getBeforeLine(cmdArgs cmdArgs, buffedLine []string, currentLineNum int, printedLine map[int]struct{}) (result []string) {
+	// 用于计算、定位的下标以buffer位置
+	length := len(buffedLine)
+	start := length - cmdArgs.beforeLine - 1
 	if start < 0 {
-		start = 0
+		start = length - 1
 	}
-	end := lineNum + a
-	length := len(lines)
-	if end >= length {
-		end = length - 1
-	}
-	for index := start; index <= end; index++ {
+	result = make([]string, 0)
+	for index := start; index <= length-1; index++ {
+		// index对应的当前真实行号 = 当前行号 - 偏移量（length-1-index）
+		lineNum := currentLineNum - (length - 1 - index)
 		// 如果打印过了就不再打印
-		if _, exist := printedLine[index]; exist {
+		if _, exist := printedLine[lineNum]; exist {
 			continue
 		}
-		if cmdArgs.isIncludeLineNumber {
-			matchedLines = append(matchedLines, fmt.Sprintf("%d:%s", index, lines[index]))
-		} else {
-			matchedLines = append(matchedLines, fmt.Sprintf(lines[index]))
-		}
-		printedLine[index] = struct{}{}
+		result = append(result, formatLine(cmdArgs, lineNum, buffedLine[index]))
+		printedLine[lineNum] = struct{}{}
 	}
-	return matchedLines
+	return result
 }
 
+func formatLine(args cmdArgs, index int, line string) string {
+	if args.isIncludeLineNumber {
+		return fmt.Sprintf("%d:%s", index, line)
+	} else {
+		return line
+	}
+}
 func readFile(filepath string) (string, error) {
 	// 检查文件是否存在
 	info, err := os.Stat(filepath)
