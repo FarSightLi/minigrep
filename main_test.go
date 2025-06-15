@@ -3,8 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
-	"strings"
 	"testing"
 )
 
@@ -86,40 +84,6 @@ func TestParseArgs(t *testing.T) {
 				t.Errorf("expected:\n%+v\n\ngot:\n%+v", test.expected, result)
 			}
 		})
-	}
-}
-
-// TestReadFile 测试读取文件功能
-func TestReadFile(t *testing.T) {
-	// 创建临时测试文件
-	dir := t.TempDir()
-	testFile := dir + "/test.txt"
-	data := "hello world\nthis is a test\ngoodbye world"
-	os.WriteFile(testFile, []byte(data), 0644)
-
-	// 测试正常读取文件
-	content, err := readFile(testFile)
-	if err != nil {
-		t.Errorf("Expected no error, but got %v", err)
-	}
-	if content != data {
-		t.Errorf("Expected content '%s', but got '%s'", data, content)
-	}
-
-	// 测试读取不存在的文件
-	_, err = readFile(dir + "/nonexistent.txt")
-	if err == nil {
-		t.Error("Expected error for nonexistent file, but got none")
-	} else if !strings.Contains(err.Error(), "file not found") {
-		t.Errorf("Expected error message containing 'file not found', but got '%v'", err)
-	}
-
-	// 测试读取目录
-	_, err = readFile(dir)
-	if err == nil {
-		t.Error("Expected error for reading directory, but got none")
-	} else if !strings.Contains(err.Error(), "is a directory") {
-		t.Errorf("Expected error message containing 'is a directory', but got '%v'", err)
 	}
 }
 

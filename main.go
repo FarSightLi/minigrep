@@ -39,21 +39,18 @@ func main() {
 		file, e := os.Open(filepath)
 		if e != nil {
 			if os.IsNotExist(e) {
-				fmt.Printf("找不到 %s 文件", filepath)
+				_, _ = fmt.Fprintf(os.Stderr, "找不到 %s 文件\n", filepath)
 			} else if os.IsPermission(e) {
-				fmt.Printf("权限被拒绝")
+				_, _ = fmt.Fprintf(os.Stderr, "权限被拒绝\n")
 			} else {
-				fmt.Printf("文件打开失败: %v", e)
+				_, _ = fmt.Fprintf(os.Stderr, "文件打开失败: %v", e)
 			}
 			return
 		}
 		input = file
 		// defer 延迟关闭
 		defer func(file *os.File) {
-			err := file.Close()
-			if err != nil {
-				fmt.Printf("file close file %v", err)
-			}
+			_ = file.Close()
 		}(file)
 	}
 	var printedLine = make(map[int]struct{})
@@ -85,7 +82,7 @@ func main() {
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		fmt.Printf("扫描错误: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "扫描错误: %v\n", err)
 	}
 }
 
@@ -170,6 +167,7 @@ func addBuffer(line string, buffer []string, size int) []string {
 
 /**
  * 获得匹配行之前的所有行（已格式化）
+ * 其实这里可以直接打印匹配的行，可以节约一定内存
  */
 func getBeforeLine(cmdArgs cmdArgs, buffedLine []string, currentLineNum int, printedLine map[int]struct{}) (result []string) {
 	// 用于计算、定位的下标以buffer位置
@@ -199,27 +197,4 @@ func formatLine(args cmdArgs, index int, line string) string {
 	} else {
 		return line
 	}
-}
-func readFile(filepath string) (string, error) {
-	// 检查文件是否存在
-	info, err := os.Stat(filepath)
-	if os.IsNotExist(err) {
-		return "", fmt.Errorf("找不到 %s 文件", filepath)
-	}
-
-	// 检查是否是目录
-	if err == nil && info.IsDir() {
-		return "", fmt.Errorf("%s 是一个目录而非文件", filepath)
-	}
-
-	// 读取文件内容
-	content, err := os.ReadFile(filepath)
-	if err != nil {
-		if os.IsPermission(err) {
-			return "", errors.New("权限被拒绝")
-		}
-		return "", err
-	}
-
-	return string(content), nil
 }
