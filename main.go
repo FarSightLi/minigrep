@@ -58,8 +58,8 @@ func main() {
 	}
 	var printedLine = make(map[int]struct{})
 
-	// 行缓冲区，size为 1+after
-	size := 1 + cmdArgs.afterLine
+	// 行缓冲区，size为 1+before,最大只需当前行+指定的B参数
+	size := 1 + cmdArgs.beforeLine
 	buffer := make([]string, 0, size)
 	reader := bufio.NewReader(input)
 	var lineNum = 0
@@ -176,7 +176,8 @@ func getBeforeLine(cmdArgs cmdArgs, buffedLine []string, currentLineNum int, pri
 	length := len(buffedLine)
 	start := length - cmdArgs.beforeLine - 1
 	if start < 0 {
-		start = length - 1
+		// 即从头打印
+		start = 0
 	}
 	result = make([]string, 0)
 	for index := start; index <= length-1; index++ {
