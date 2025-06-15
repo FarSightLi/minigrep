@@ -70,6 +70,7 @@ func main() {
 		lineNum++
 		buffer = addBuffer(line, buffer, size)
 		if notPrintLine > 0 {
+			notPrintLine--
 			fmt.Println(formatLine(cmdArgs, lineNum, line))
 		}
 		if isMatch(cmdArgs, line) {
