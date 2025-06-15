@@ -60,7 +60,7 @@ func main() {
 
 	// 行缓冲区，size为 1+after
 	size := 1 + cmdArgs.afterLine
-	buffer := make([]string, size)
+	buffer := make([]string, 0, size)
 	reader := bufio.NewReader(input)
 	var lineNum = 0
 	scanner := bufio.NewScanner(reader)
